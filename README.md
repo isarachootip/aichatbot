@@ -32,6 +32,12 @@ Multi-tenant AI Chat Agent SaaS for Thai online shops (LINE OA first) grounded s
    - Redis is exposed on host port `6380` by default (`REDIS_HOST_PORT`).
    - MinIO Console is available at `http://localhost:9001`.
 
+## Deployment Notes (Coolify)
+
+- `docker-compose.yml` uses `expose:` (no hardcoded host `ports:`) and bakes PostgreSQL init scripts into `infra/postgres/Dockerfile`, so Coolify deploys with `-f docker-compose.yml` without port collisions (`8000`, `9000`, `5432`, `6379`).
+- Point Coolify's Domain for the `backend` service to port `8000`.
+- Local development automatically merges `docker-compose.override.yml` to expose localhost ports and mount `./backend:/app` for hot reload.
+
 ## Running Tests & Quality Checks
 
 Run static analysis, strict type checking, and the full test suite (including PostgreSQL RLS cross-tenant isolation tests):
