@@ -8,9 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.channels.base import ChannelAdapter, InboundEvent
+from app.channels.factory import ChannelAdapterFactory
 from app.core.tenant_context import tenant_scoped_session
 from app.models.messaging import Conversation, Message
-from app.services.quota import switch_to_human_and_notify
+from app.services.handoff import execute_handoff
 
 IMAGE_HANDOFF_REPLY = (
     "ได้รับรูปภาพเรียบร้อยแล้วค่ะ ขออนุญาตให้แอดมินตรวจสอบและตอบกลับสักครู่นะคะ"
@@ -41,16 +42,32 @@ async def handle_non_text_event(
     conversation_id: UUID,
     event: InboundEvent,
     deliver_fn: object,
+    adapter_factory: ChannelAdapterFactory | None = None,
 ) -> LineHandleOutcome:
     """Reply politely to images (with handoff) and stickers/other media (without handoff)."""
-    is_image = event.message_type == "image"
-    if is_image:
-        reply_text = IMAGE_HANDOFF_REPLY
-    elif event.message_type == "sticker":
-        reply_text = STICKER_FALLBACK_REPLY
-    else:
-        reply_text = UNSUPPORTED_MEDIA_REPLY
+    if event.message_type == "image":
+        await execute_handoff(
+            session_factory,
+            tenant_id=tenant_id,
+            conversation_id=conversation_id,
+            question="[รูปภาพ / สลิปโอนเงิน]",
+            reason="image",
+            save_bot_message=True,
+            bot_message_override=IMAGE_HANDOFF_REPLY,
+            adapter_factory=adapter_factory,
+            fallback_adapter=adapter,
+        )
+        delivery: str = await deliver_fn(adapter, event=event, text=IMAGE_HANDOFF_REPLY)  # type: ignore[operator]
+        return LineHandleOutcome(
+            action="image_handoff",
+            conversation_id=conversation_id,
+            delivery_method=delivery,
+            handoff=True,
+        )
 
+    reply_text = (
+        STICKER_FALLBACK_REPLY if event.message_type == "sticker" else UNSUPPORTED_MEDIA_REPLY
+    )
     async with tenant_scoped_session(session_factory, tenant_id) as session:
         conv = (
             await session.execute(
@@ -60,16 +77,6 @@ async def handle_non_text_event(
                 )
             )
         ).scalar_one()
-        if is_image:
-            await switch_to_human_and_notify(
-                session,
-                tenant_id=tenant_id,
-                conversation=conv,
-                notif_type="image_handoff",
-                title="ลูกค้าส่งรูปภาพ/สลิป — ส่งต่อแอดมิน",
-                body="ลูกค้าส่งรูปภาพเข้ามาในแชท ระบบสลับเป็นโหมดแอดมินแล้ว",
-                metadata={"conversation_id": str(conversation_id), "event_id": event.event_id},
-            )
         session.add(
             Message(
                 tenant_id=tenant_id,
@@ -80,11 +87,10 @@ async def handle_non_text_event(
         )
         conv.last_message_at = datetime.now(UTC)
 
-    delivery: str = await deliver_fn(adapter, event=event, text=reply_text)  # type: ignore[operator]
-    action = "image_handoff" if is_image else f"{event.message_type}_fallback"
+    delivery = await deliver_fn(adapter, event=event, text=reply_text)  # type: ignore[operator]
     return LineHandleOutcome(
-        action=action,
+        action=f"{event.message_type}_fallback",
         conversation_id=conversation_id,
         delivery_method=delivery,
-        handoff=is_image,
+        handoff=False,
     )

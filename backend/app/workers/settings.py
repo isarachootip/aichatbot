@@ -3,7 +3,9 @@
 from collections.abc import Callable, Coroutine
 from typing import ClassVar
 
+from arq import cron
 from arq.connections import RedisSettings
+from arq.cron import CronJob
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -14,6 +16,7 @@ from app.core.storage import S3ObjectStorage
 from app.rag.embeddings import create_embedder
 from app.rag.llm import create_llm_client
 from app.services.debounce import RedisBurstDebouncer
+from app.workers.auto_return import auto_return_inactive_conversations_job
 from app.workers.ingest import ingest_document_job
 from app.workers.line_inbound import process_line_event_job
 
@@ -65,6 +68,9 @@ class WorkerSettings:
         worker_ping,
         ingest_document_job,
         process_line_event_job,
+    ]
+    cron_jobs: ClassVar[list[CronJob]] = [
+        cron(auto_return_inactive_conversations_job, minute={0, 15, 30, 45}),
     ]
     on_startup = on_startup
     on_shutdown = on_shutdown

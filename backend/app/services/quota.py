@@ -161,3 +161,34 @@ async def switch_to_human_and_notify(
             payload=metadata or {},
         )
     )
+
+
+async def handle_ineligible_tenant(
+    session: AsyncSession,
+    *,
+    tenant_id: UUID,
+    conversation_id: UUID,
+    eligibility: QuotaCheckResult,
+) -> None:
+    """Switch conversation to human mode and alert the owner on trial/quota block."""
+    conv_row = (
+        await session.execute(select(Conversation).where(Conversation.id == conversation_id))
+    ).scalar_one()
+    title = (
+        "ช่วงทดลองใช้งานหมดอายุแล้ว"
+        if eligibility.reason == "trial_expired"
+        else "โควต้าข้อความรายเดือนเต็มแล้ว"
+    )
+    await switch_to_human_and_notify(
+        session,
+        tenant_id=tenant_id,
+        conversation=conv_row,
+        notif_type=eligibility.reason,
+        title=title,
+        body="บอทหยุดตอบอัตโนมัติและสลับแชทเป็นโหมดแอดมินแล้ว กรุณาตรวจสอบแพ็กเกจของคุณ",
+        metadata={
+            "conversation_id": str(conversation_id),
+            "used": eligibility.used_messages,
+            "limit": eligibility.limit_messages,
+        },
+    )

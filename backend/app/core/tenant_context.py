@@ -42,3 +42,24 @@ async def resolve_channel_tenant(
     )
     resolved: UUID | None = result.scalar_one_or_none()
     return resolved
+
+
+async def list_active_tenant_ids(session: AsyncSession) -> list[UUID]:
+    """Enumerate all tenant IDs via SECURITY DEFINER SQL for RLS-safe cron iteration."""
+    result = await session.execute(text("SELECT list_active_tenant_ids()"))
+    return [row[0] for row in result.fetchall() if row[0] is not None]
+
+
+async def resolve_user_tenant(
+    session: AsyncSession,
+    user_id: UUID,
+) -> tuple[UUID, str] | None:
+    """Resolve (tenant_id, role) for an authenticated user via SECURITY DEFINER SQL."""
+    result = await session.execute(
+        text("SELECT tenant_id, role FROM resolve_user_tenant(:user_id)"),
+        {"user_id": str(user_id)},
+    )
+    row = result.one_or_none()
+    if row is None:
+        return None
+    return (row[0], str(row[1]))

@@ -94,6 +94,15 @@ class BotSetting(Base):
         nullable=False,
         default=False,
     )
+    handoff_notify_channel_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("channels.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    handoff_notify_target_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
 
 
 class Subscription(Base):

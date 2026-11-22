@@ -7,11 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.channels.base import ChannelAdapter, InboundEvent, ReplyTokenExpiredError
-from app.channels.line import LineChannelAdapter
-from app.core.crypto import decrypt_credentials
+from app.channels.factory import resolve_channel_adapter
 from app.core.logging import get_logger
 from app.core.tenant_context import tenant_scoped_session
-from app.models.messaging import Channel, Conversation, Message, UnansweredQuestion
+from app.models.messaging import Conversation, Message
+from app.models.tenant import BotSetting
 from app.rag.types import AnswerResult
 from app.services.quota import increment_monthly_usage
 
@@ -56,23 +56,26 @@ async def resolve_line_adapter(
     fernet_key: str,
 ) -> ChannelAdapter | None:
     """Load an active LINE channel under RLS and decrypt its access token."""
-    async with tenant_scoped_session(session_factory, tenant_id) as session:
-        channel = (
-            await session.execute(
-                select(Channel).where(
-                    Channel.id == channel_id,
-                    Channel.tenant_id == tenant_id,
-                    Channel.active.is_(True),
-                )
-            )
-        ).scalar_one_or_none()
-        if channel is None:
-            return None
-        creds = decrypt_credentials(channel.credentials_encrypted, fernet_key=fernet_key)
-    token = creds.get("channel_access_token", "").strip()
-    if not token:
-        raise ValueError(f"Channel {channel_id} credentials missing channel_access_token")
-    return LineChannelAdapter(channel_access_token=token)
+    return await resolve_channel_adapter(
+        session_factory,
+        tenant_id=tenant_id,
+        channel_id=channel_id,
+        fernet_key=fernet_key,
+    )
+
+
+async def load_handoff_keywords(
+    session: AsyncSession,
+    *,
+    tenant_id: UUID,
+) -> list[str]:
+    """Fetch the tenant's configured handoff trigger keywords."""
+    row = (
+        await session.execute(select(BotSetting).where(BotSetting.tenant_id == tenant_id))
+    ).scalar_one_or_none()
+    if row is None or not row.handoff_keywords:
+        return ["แอดมิน", "คุยกับคน", "ติดต่อเจ้าหน้าที่"]
+    return list(row.handoff_keywords)
 
 
 async def upsert_conversation_and_save_customer_msg(
@@ -120,10 +123,9 @@ async def save_bot_reply_and_usage(
     *,
     tenant_id: UUID,
     conversation_id: UUID,
-    question: str,
     rag_result: AnswerResult,
 ) -> None:
-    """Persist bot reply message, optional unanswered question, and monthly token rollup."""
+    """Persist bot reply message and increment monthly LLM token/message rollup."""
     async with tenant_scoped_session(session_factory, tenant_id) as session:
         session.add(
             Message(
@@ -137,14 +139,6 @@ async def save_bot_reply_and_usage(
                 output_tokens=rag_result.tokens.output_tokens,
             )
         )
-        if rag_result.handoff:
-            session.add(
-                UnansweredQuestion(
-                    tenant_id=tenant_id,
-                    conversation_id=conversation_id,
-                    question=question,
-                )
-            )
         conv_ref = (
             await session.execute(select(Conversation).where(Conversation.id == conversation_id))
         ).scalar_one()

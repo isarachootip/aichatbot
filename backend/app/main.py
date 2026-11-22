@@ -6,8 +6,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from redis.asyncio import Redis
 
+from app.api.conversations import create_conversations_router
 from app.api.health import create_health_router
 from app.api.webhooks import create_webhooks_router
+from app.channels.factory import ChannelAdapterFactory, DatabaseChannelAdapterFactory
 from app.core.config import Settings, get_settings
 from app.core.database import create_engine_from_url, create_session_factory
 from app.core.logging import configure_logging, get_logger
@@ -20,6 +22,7 @@ def create_app(
     *,
     enqueuer: JobEnqueuer | None = None,
     debouncer: BurstDebouncer | None = None,
+    adapter_factory: ChannelAdapterFactory | None = None,
 ) -> FastAPI:
     """Construct and configure the FastAPI application."""
     cfg = settings or get_settings()
@@ -31,6 +34,10 @@ def create_app(
     redis_client = Redis.from_url(cfg.redis_url, decode_responses=True)
     job_enqueuer: JobEnqueuer = enqueuer or ArqJobEnqueuer(cfg.redis_url)
     burst_debouncer: BurstDebouncer = debouncer or RedisBurstDebouncer(redis_client)
+    outbound_adapters: ChannelAdapterFactory = adapter_factory or DatabaseChannelAdapterFactory(
+        session_factory,
+        fernet_key=cfg.fernet_key,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -60,6 +67,13 @@ def create_app(
             session_factory=session_factory,
             enqueuer=job_enqueuer,
             debouncer=burst_debouncer,
+        )
+    )
+    application.include_router(
+        create_conversations_router(
+            session_factory=session_factory,
+            adapter_factory=outbound_adapters,
+            settings=cfg,
         )
     )
     return application
