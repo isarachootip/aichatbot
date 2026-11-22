@@ -7,19 +7,30 @@ from fastapi import FastAPI
 from redis.asyncio import Redis
 
 from app.api.health import create_health_router
+from app.api.webhooks import create_webhooks_router
 from app.core.config import Settings, get_settings
-from app.core.database import create_engine_from_url
+from app.core.database import create_engine_from_url, create_session_factory
 from app.core.logging import configure_logging, get_logger
+from app.core.queue import ArqJobEnqueuer, JobEnqueuer
+from app.services.debounce import BurstDebouncer, RedisBurstDebouncer
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    enqueuer: JobEnqueuer | None = None,
+    debouncer: BurstDebouncer | None = None,
+) -> FastAPI:
     """Construct and configure the FastAPI application."""
     cfg = settings or get_settings()
     configure_logging(cfg.log_level)
     logger = get_logger("app.main")
 
     engine = create_engine_from_url(cfg.database_url)
+    session_factory = create_session_factory(engine)
     redis_client = Redis.from_url(cfg.redis_url, decode_responses=True)
+    job_enqueuer: JobEnqueuer = enqueuer or ArqJobEnqueuer(cfg.redis_url)
+    burst_debouncer: BurstDebouncer = debouncer or RedisBurstDebouncer(redis_client)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -27,6 +38,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             yield
         finally:
+            await job_enqueuer.close()
             await redis_client.aclose()
             await engine.dispose()
             logger.info("application_shutdown")
@@ -41,6 +53,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             engine=engine,
             redis_client=redis_client,
             app_version=cfg.app_version,
+        )
+    )
+    application.include_router(
+        create_webhooks_router(
+            session_factory=session_factory,
+            enqueuer=job_enqueuer,
+            debouncer=burst_debouncer,
         )
     )
     return application

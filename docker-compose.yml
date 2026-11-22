@@ -71,6 +71,7 @@ services:
       LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-gemini-3.5-flash-lite}
       LLM_ESCALATION_MODEL: ${LLM_ESCALATION_MODEL:-gemini-3.8-flash}
       LLM_ESCALATION_ENABLED: ${LLM_ESCALATION_ENABLED:-false}
+      FERNET_KEY: ${FERNET_KEY:-}
     healthcheck:
       test:
         [
@@ -116,6 +117,7 @@ services:
       LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-gemini-3.5-flash-lite}
       LLM_ESCALATION_MODEL: ${LLM_ESCALATION_MODEL:-gemini-3.8-flash}
       LLM_ESCALATION_ENABLED: ${LLM_ESCALATION_ENABLED:-false}
+      FERNET_KEY: ${FERNET_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

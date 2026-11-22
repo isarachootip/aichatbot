@@ -58,11 +58,7 @@ class _EmbeddingsResponseLike(Protocol):
 
 class _EmbeddingsEndpointLike(Protocol):
     async def create(
-        self,
-        *,
-        model: str,
-        input: list[str],
-        dimensions: int,
+        self, *, model: str, input: list[str], dimensions: int
     ) -> _EmbeddingsResponseLike: ...
 
 
@@ -73,9 +69,7 @@ class _OpenAIClientLike(Protocol):
 def _validate_vectors(vectors: list[list[float]], dimensions: int) -> list[list[float]]:
     for vec in vectors:
         if len(vec) != dimensions:
-            raise ValueError(
-                f"Embedding vector dimension mismatch: expected {dimensions}, got {len(vec)}"
-            )
+            raise ValueError(f"Vector dimension mismatch: expected {dimensions}, got {len(vec)}")
     return vectors
 
 

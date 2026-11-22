@@ -108,31 +108,23 @@ async def run_evals(
             session.add(Tenant(id=tenant_id, name="สยามสไตล์ (Eval)"))
             await session.flush()
             session.add(BotSetting(tenant_id=tenant_id, shop_name="สยามสไตล์"))
+            key = f"eval/{doc_id}/{fixture_path.name}"
             session.add(
                 Document(
                     id=doc_id,
                     tenant_id=tenant_id,
                     filename=fixture_path.name,
                     mime="text/plain",
-                    storage_key=f"eval/{doc_id}/{fixture_path.name}",
+                    storage_key=key,
                     status="pending",
                 )
             )
 
         storage = InMemoryStorage()
-        await storage.upload_bytes(
-            f"eval/{doc_id}/{fixture_path.name}",
-            fixture_path.read_bytes(),
-            "text/plain",
-        )
+        await storage.upload_bytes(key, fixture_path.read_bytes(), "text/plain")
         ingest_res = await ingest_document(
-            app_factory,
-            storage,
-            embedder,
-            tenant_id=tenant_id,
-            document_id=doc_id,
-            target_tokens=140,
-            overlap_tokens=20,
+            app_factory, storage, embedder,
+            tenant_id=tenant_id, document_id=doc_id, target_tokens=140, overlap_tokens=20,
         )
         if ingest_res.status != "ready":
             raise RuntimeError(f"Eval fixture ingestion failed: {ingest_res.error}")
@@ -143,28 +135,18 @@ async def run_evals(
                 await asyncio.sleep(delay_seconds)
             started = time.perf_counter()
             res = await _answer_with_retry(
-                app_factory=app_factory,
-                embedder=embedder,
-                llm_client=llm_client,
-                settings=settings,
-                tenant_id=tenant_id,
-                question=case.question,
+                app_factory=app_factory, embedder=embedder, llm_client=llm_client,
+                settings=settings, tenant_id=tenant_id, question=case.question,
             )
             elapsed_ms = (time.perf_counter() - started) * 1000.0
-            matched = (
-                True
-                if case.should_handoff
-                else check_answer_contains(res.text, case.expected_answer_contains)
+            matched = case.should_handoff or check_answer_contains(
+                res.text, case.expected_answer_contains
             )
             outcomes.append(
                 EvalCaseOutcome(
-                    case=case,
-                    answer_text=res.text,
-                    actual_handoff=res.handoff,
-                    answer_matched=matched,
-                    latency_ms=elapsed_ms,
-                    input_tokens=res.tokens.input_tokens,
-                    output_tokens=res.tokens.output_tokens,
+                    case=case, answer_text=res.text, actual_handoff=res.handoff,
+                    answer_matched=matched, latency_ms=elapsed_ms,
+                    input_tokens=res.tokens.input_tokens, output_tokens=res.tokens.output_tokens,
                     model=res.tokens.model,
                 )
             )
@@ -182,9 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run Phase 2 Thai RAG evaluation suite")
     parser.add_argument("--mode", default="auto", choices=["auto", "live", "mock"])
     parser.add_argument(
-        "--embedding-provider",
-        default=None,
-        choices=["gemini", "bge_m3", "openai", "mock"],
+        "--embedding-provider", default=None, choices=["gemini", "bge_m3", "openai", "mock"]
     )
     parser.add_argument("--llm-provider", default=None, choices=["gemini", "anthropic"])
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between live calls")

@@ -2,7 +2,7 @@
 
 Multi-tenant AI Chat Agent SaaS for Thai online shops (LINE OA first) grounded strictly in each shop's uploaded knowledge base, with PostgreSQL Row Level Security (RLS), hybrid vector + keyword retrieval, human handoff, and Omise billing.
 
-## Architecture (Phase 1–2)
+## Architecture (Phase 1–3)
 
 - **Backend**: Python 3.12, FastAPI, SQLAlchemy 2.x (async), Alembic, Pydantic v2, structlog
 - **Database**: PostgreSQL 16 + `pgvector` (`vector(1024)` + HNSW cosine index + GIN `tsvector` index)
@@ -13,7 +13,8 @@ Multi-tenant AI Chat Agent SaaS for Thai online shops (LINE OA first) grounded s
   - Embeddings: pluggable 1024-dim interface (Google Gemini `gemini-embedding-001`, `BAAI/bge-m3` via optional `[local-embeddings]`, OpenAI `text-embedding-3-small`, deterministic `mock`)
   - Hybrid Retrieval: pgvector cosine (top 20) + PyThaiNLP `tsvector` keyword search (top 20) merged via Reciprocal Rank Fusion (top 6), tenant-filtered + RLS-enforced
   - Generation: Thai system prompt, untrusted XML delimiting, last 10 messages of history, pluggable Google Gemini (structured JSON schema) & Anthropic Claude (forced tool use `respond_to_customer`) for structured handoff + source citations
-- **Queue**: Redis 7 + ARQ worker (`ingest_document_job`)
+- **Channels (Phase 3)**: LINE Messaging API (`POST /webhooks/line/{channel_id}`) with HMAC-SHA256 signature verification, `webhook_events` deduplication, Fernet-encrypted credentials, 2.5s Redis text burst debouncing, loading indicator, reply-to-push fallback, image/slip handoff, sticker fallback, and trial/quota enforcement
+- **Queue**: Redis 7 + ARQ worker (`ingest_document_job`, `process_line_event_job`)
 - **Object Storage**: S3-compatible MinIO (local dev)
 
 ## Quick Start (Docker Compose)
@@ -82,3 +83,32 @@ docker compose exec backend python -m evals.runner
 ```
 
 > To enable local `BAAI/bge-m3` embeddings on a machine with PyTorch support, install the optional extra: `pip install -e ".[local-embeddings]"`.
+
+## Phase 3 LINE OA Setup & Local Testing (`ngrok`)
+
+1. **Create a LINE Messaging API Channel**
+   - Go to [LINE Developers Console](https://developers.line.biz/console/) and create (or select) a Provider.
+   - Create a new **Messaging API** channel for your shop.
+   - Under **Basic settings**, copy the **Channel secret** (`webhook_secret`).
+   - Under **Messaging API**, issue and copy a **Channel access token (long-lived)**.
+   - Disable LINE's built-in **Auto-reply messages** in LINE Official Account Manager so only your AI bot replies.
+
+2. **Generate a Fernet Key for Encrypted Credentials**
+   ```bash
+   docker compose exec backend python -c "from app.core.crypto import generate_fernet_key; print(generate_fernet_key())"
+   ```
+   Put the output into `FERNET_KEY=...` in your `.env` and restart `backend` and `worker`.
+
+3. **Expose Local Backend via `ngrok`**
+   ```bash
+   ngrok http 8000
+   ```
+   Copy the HTTPS forwarding URL (e.g. `https://<subdomain>.ngrok-free.app`).
+
+4. **Configure the Webhook URL in LINE Developers Console**
+   - Set **Webhook URL** to:
+     ```text
+     https://<subdomain>.ngrok-free.app/webhooks/line/<channel_id>
+     ```
+   - Enable **Use webhook** and click **Verify** (LINE sends an empty signed `events: []` request and expects `200 OK`).
+   - Send a message from your personal LINE app to the OA — the webhook validates `X-Line-Signature`, dedupes by `webhookEventId`, debounces rapid bursts (2.5s), runs the RAG pipeline in ARQ, and replies directly in LINE.
