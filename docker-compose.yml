@@ -61,6 +61,14 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin_dev_password}
       S3_BUCKET: ${S3_BUCKET:-knowledge-base}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-bge_m3}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1024}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-claude-haiku-4-5-20251001}
+      LLM_ESCALATION_MODEL: ${LLM_ESCALATION_MODEL:-claude-sonnet-4-5-20250929}
+      LLM_ESCALATION_ENABLED: ${LLM_ESCALATION_ENABLED:-false}
     healthcheck:
       test:
         [
@@ -96,6 +104,14 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin_dev_password}
       S3_BUCKET: ${S3_BUCKET:-knowledge-base}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-bge_m3}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1024}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-claude-haiku-4-5-20251001}
+      LLM_ESCALATION_MODEL: ${LLM_ESCALATION_MODEL:-claude-sonnet-4-5-20250929}
+      LLM_ESCALATION_ENABLED: ${LLM_ESCALATION_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy
