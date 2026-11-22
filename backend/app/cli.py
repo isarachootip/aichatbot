@@ -25,7 +25,7 @@ from app.models.knowledge import Document
 from app.models.tenant import BotSetting, Tenant
 from app.rag.embeddings import create_embedder
 from app.rag.generate import answer
-from app.rag.llm import AnthropicLLMClient, LLMClient, MockLLMClient
+from app.rag.llm import LLMClient, MockLLMClient, create_llm_client
 from app.rag.types import AnswerResult
 from app.workers.ingest import ingest_document
 
@@ -134,11 +134,7 @@ def _print_answer(result: AnswerResult, *, as_json: bool) -> None:
 
 
 async def _run_ask(args: argparse.Namespace, settings: Settings) -> int:
-    llm: LLMClient = (
-        MockLLMClient()
-        if args.mock_llm
-        else AnthropicLLMClient(api_key=settings.anthropic_api_key)
-    )
+    llm: LLMClient = MockLLMClient() if args.mock_llm else create_llm_client(settings)
     app_engine = create_engine_from_url(settings.database_url)
     try:
         result = await answer(
@@ -159,7 +155,7 @@ async def _run_ask(args: argparse.Namespace, settings: Settings) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m app.cli", description="RAG manual testing CLI")
     sub = parser.add_subparsers(dest="command", required=True)
-    providers = ["bge_m3", "openai", "mock"]
+    providers = ["gemini", "bge_m3", "openai", "mock"]
 
     p_in = sub.add_parser("ingest", help="Upload and ingest a document for a tenant")
     p_in.add_argument("--tenant", required=True, help="Tenant UUID")
@@ -172,6 +168,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ask.add_argument("question", help="Customer question in Thai or English")
     p_ask.add_argument("--conversation", default=None, help="Optional conversation UUID")
     p_ask.add_argument("--embedding-provider", default=None, choices=providers)
+    p_ask.add_argument("--llm-provider", default=None, choices=["gemini", "anthropic"])
     p_ask.add_argument("--mock-llm", action="store_true", help="Use offline MockLLMClient")
     p_ask.add_argument("--json", action="store_true", help="Emit JSON output")
     return parser
@@ -181,8 +178,13 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
     args = _build_parser().parse_args(argv)
     settings = get_settings()
+    updates: dict[str, object] = {}
     if getattr(args, "embedding_provider", None):
-        settings = settings.model_copy(update={"embedding_provider": args.embedding_provider})
+        updates["embedding_provider"] = args.embedding_provider
+    if getattr(args, "llm_provider", None):
+        updates["llm_provider"] = args.llm_provider
+    if updates:
+        settings = settings.model_copy(update=updates)
     configure_logging(settings.log_level)
     if args.command == "ingest":
         return asyncio.run(_run_ingest(args, settings))

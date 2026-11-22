@@ -10,9 +10,9 @@ Multi-tenant AI Chat Agent SaaS for Thai online shops (LINE OA first) grounded s
 - **RAG Core**:
   - Parsing: PyMuPDF (text PDF), python-docx (DOCX), pandas/openpyxl (XLSX/CSV preserving atomic rows), TXT
   - Thai NLP & Chunking: PyThaiNLP sentence/word segmentation (~500 tokens, ~50 overlap, zero mid-word splits)
-  - Embeddings: pluggable 1024-dim interface (`BAAI/bge-m3` via optional `[local-embeddings]`, OpenAI `text-embedding-3-small`, deterministic `mock`)
+  - Embeddings: pluggable 1024-dim interface (Google Gemini `gemini-embedding-001`, `BAAI/bge-m3` via optional `[local-embeddings]`, OpenAI `text-embedding-3-small`, deterministic `mock`)
   - Hybrid Retrieval: pgvector cosine (top 20) + PyThaiNLP `tsvector` keyword search (top 20) merged via Reciprocal Rank Fusion (top 6), tenant-filtered + RLS-enforced
-  - Generation: Thai system prompt, untrusted XML delimiting, last 10 messages of history, Anthropic Claude forced tool use (`respond_to_customer`) for structured handoff + source citations
+  - Generation: Thai system prompt, untrusted XML delimiting, last 10 messages of history, pluggable Google Gemini (structured JSON schema) & Anthropic Claude (forced tool use `respond_to_customer`) for structured handoff + source citations
 - **Queue**: Redis 7 + ARQ worker (`ingest_document_job`)
 - **Object Storage**: S3-compatible MinIO (local dev)
 

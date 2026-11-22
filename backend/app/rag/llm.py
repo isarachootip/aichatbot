@@ -5,6 +5,8 @@ from typing import Protocol, runtime_checkable
 
 from anthropic import AsyncAnthropic
 
+from app.core.config import Settings
+from app.rag.llm_gemini import GeminiLLMClient
 from app.rag.llm_mock import MockLLMClient
 from app.rag.types import StructuredLLMResponse
 
@@ -12,9 +14,11 @@ __all__ = [
     "RESPOND_TOOL_NAME",
     "RESPOND_TOOL_SCHEMA",
     "AnthropicLLMClient",
+    "GeminiLLMClient",
     "LLMClient",
     "MockLLMClient",
     "StructuredLLMResponse",
+    "create_llm_client",
 ]
 
 RESPOND_TOOL_NAME = "respond_to_customer"
@@ -144,3 +148,13 @@ class AnthropicLLMClient:
             output_tokens=output_tokens,
             model=resolved_model,
         )
+
+
+def create_llm_client(settings: Settings) -> LLMClient:
+    """Instantiate the configured LLM provider (Google Gemini or Anthropic Claude)."""
+    if settings.llm_provider == "gemini":
+        return GeminiLLMClient(
+            api_key=settings.gemini_api_key,
+            use_vertexai=settings.gemini_use_vertexai,
+        )
+    return AnthropicLLMClient(api_key=settings.anthropic_api_key)

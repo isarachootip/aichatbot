@@ -12,11 +12,14 @@ card), then pay monthly via Omise (credit card auto-renew / PromptPay manual mon
 - Backend: Python 3.12, FastAPI, SQLAlchemy 2.x (async), Alembic, Pydantic v2
 - DB: PostgreSQL 16 + pgvector (Supabase-compatible), Row Level Security by `tenant_id`
 - Queue: Redis + ARQ for background jobs (document ingestion, outbound replies, crons)
-- Embeddings: pluggable interface locked to `vector(1024)`; default `BAAI/bge-m3`
-  (1024 dims) via sentence-transformers, alternative OpenAI `text-embedding-3-small`
+- Embeddings: pluggable interface locked to `vector(1024)`; supports Google Gemini
+  `gemini-embedding-001` (`output_dimensionality=1024`, default), `BAAI/bge-m3`
+  (1024 dims) via sentence-transformers, OpenAI `text-embedding-3-small`
   (`dimensions=1024`), plus deterministic mock for unit tests. Selected via config.
-- LLM: Anthropic Claude API (`anthropic` Python SDK). `LLM_DEFAULT_MODEL` and
-  `LLM_ESCALATION_MODEL` come from config; escalation hook is opt-in via config.
+- LLM: pluggable interface supporting Google Gemini (`google-genai`, default
+  `gemini-3.5-flash-lite` / escalation `gemini-3.8-flash`) and Anthropic Claude (`anthropic`).
+  `LLM_PROVIDER`, `LLM_DEFAULT_MODEL`, and `LLM_ESCALATION_MODEL` come from config;
+  escalation hook is opt-in via config.
 - Thai NLP: PyThaiNLP for sentence/word segmentation (chunking + keyword search)
 - Parsing: PyMuPDF (text-based PDF, no OCR in MVP), python-docx (DOCX), pandas (XLSX/CSV)
 - File storage: S3-compatible (MinIO locally)

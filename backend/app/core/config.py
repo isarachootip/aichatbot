@@ -42,15 +42,18 @@ class Settings(BaseSettings):
     s3_bucket: str = "knowledge-base"
 
     # Embeddings (locked at 1024 dimensions across providers)
-    embedding_provider: Literal["bge_m3", "openai", "mock"] = "bge_m3"
-    embedding_model: str = "BAAI/bge-m3"
+    embedding_provider: Literal["bge_m3", "openai", "gemini", "mock"] = "gemini"
+    embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = Field(default=1024, ge=1)
     openai_api_key: str = ""
 
-    # LLM (Anthropic Claude)
+    # LLM (pluggable: Google Gemini or Anthropic Claude)
+    llm_provider: Literal["gemini", "anthropic"] = "gemini"
+    gemini_api_key: str = ""
+    gemini_use_vertexai: bool = False
     anthropic_api_key: str = ""
-    llm_default_model: str = "claude-haiku-4-5-20251001"
-    llm_escalation_model: str = "claude-sonnet-4-5-20250929"
+    llm_default_model: str = "gemini-3.5-flash-lite"
+    llm_escalation_model: str = "gemini-3.8-flash"
     llm_escalation_enabled: bool = False
 
     # Security & Auth

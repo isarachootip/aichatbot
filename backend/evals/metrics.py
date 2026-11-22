@@ -7,6 +7,12 @@ from pathlib import Path
 
 # USD per 1M tokens (input, output) for cost reporting
 MODEL_PRICING_USD_PER_M: dict[str, tuple[float, float]] = {
+    "gemini-3.5-flash-lite": (0.10, 0.40),
+    "gemini-3.8-flash": (0.30, 2.50),
+    "gemini-3.5-flash": (0.30, 2.50),
+    "gemini-4-neon": (1.25, 10.00),
+    "gemini-2.5-flash": (0.30, 2.50),
+    "gemini-2.5-pro": (1.25, 10.00),
     "claude-haiku-4-5-20251001": (1.00, 5.00),
     "claude-sonnet-4-5-20250929": (3.00, 15.00),
 }

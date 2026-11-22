@@ -1,4 +1,4 @@
-"""Pluggable 1024-dim embedding providers (BAAI/bge-m3, OpenAI, deterministic mock)."""
+"""Pluggable 1024-dim embedding providers (Gemini, BAAI/bge-m3, OpenAI, mock)."""
 
 import asyncio
 from collections.abc import Sequence
@@ -7,12 +7,14 @@ from typing import Protocol, runtime_checkable
 from openai import AsyncOpenAI
 
 from app.core.config import Settings
+from app.rag.embeddings_gemini import GeminiEmbedder
 from app.rag.embeddings_mock import EXPECTED_DIMENSIONS, MockEmbedder
 
 __all__ = [
     "EXPECTED_DIMENSIONS",
     "BgeM3Embedder",
     "Embedder",
+    "GeminiEmbedder",
     "MockEmbedder",
     "OpenAIEmbedder",
     "create_embedder",
@@ -30,13 +32,9 @@ class Embedder(Protocol):
         texts: Sequence[str],
         *,
         batch_size: int = 32,
-    ) -> list[list[float]]:
-        """Embed a sequence of document chunks in batches."""
-        ...
+    ) -> list[list[float]]: ...
 
-    async def embed_query(self, query: str) -> list[float]:
-        """Embed a single customer search query."""
-        ...
+    async def embed_query(self, query: str) -> list[float]: ...
 
 
 class _SentenceTransformerLike(Protocol):
@@ -118,7 +116,7 @@ class BgeM3Embedder:
         rows = raw.tolist() if hasattr(raw, "tolist") else raw
         if not isinstance(rows, list):
             raise TypeError("Unexpected output type from SentenceTransformer.encode")
-        return _validate_vectors([[float(val) for val in row] for row in rows], self.dimensions)
+        return _validate_vectors([[float(v) for v in row] for row in rows], self.dimensions)
 
     async def embed_texts(
         self,
@@ -166,14 +164,13 @@ class OpenAIEmbedder:
         results: list[list[float]] = []
         items = list(texts)
         for start in range(0, len(items), batch_size):
-            batch = items[start : start + batch_size]
             response = await self._client.embeddings.create(
                 model=self._model,
-                input=batch,
+                input=items[start : start + batch_size],
                 dimensions=self.dimensions,
             )
-            batch_vecs = [[float(v) for v in item.embedding] for item in response.data]
-            results.extend(_validate_vectors(batch_vecs, self.dimensions))
+            vecs = [[float(v) for v in item.embedding] for item in response.data]
+            results.extend(_validate_vectors(vecs, self.dimensions))
         return results
 
     async def embed_query(self, query: str) -> list[float]:
@@ -188,6 +185,17 @@ def create_embedder(settings: Settings) -> Embedder:
         )
     if settings.embedding_provider == "mock":
         return MockEmbedder()
+    if settings.embedding_provider == "gemini":
+        is_gemini_model = (
+            "embedding" in settings.embedding_model
+            and not settings.embedding_model.startswith("text-embedding-3")
+        )
+        model = settings.embedding_model if is_gemini_model else "gemini-embedding-001"
+        return GeminiEmbedder(
+            api_key=settings.gemini_api_key,
+            model=model,
+            use_vertexai=settings.gemini_use_vertexai,
+        )
     if settings.embedding_provider == "openai":
         model = (
             settings.embedding_model
