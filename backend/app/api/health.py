@@ -5,7 +5,10 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.database import check_database_health
+from app.core.logging import get_logger
 from app.schemas.health import DependencyStatus, HealthResponse
+
+logger = get_logger("app.api.health")
 
 
 async def _check_redis_health(redis_client: Redis) -> bool:
@@ -23,8 +26,18 @@ def create_health_router(
     redis_client: Redis,
     app_version: str,
 ) -> APIRouter:
-    """Build the health router bound to live database and Redis handles."""
+    """Build root and health routers bound to live database and Redis handles."""
     router = APIRouter(tags=["health"])
+
+    @router.get("/")
+    async def root() -> dict[str, str]:
+        return {
+            "service": "Thai AI Chat Agent SaaS",
+            "status": "ok",
+            "version": app_version,
+            "health": "/health",
+            "docs": "/docs",
+        }
 
     @router.get("/health", response_model=HealthResponse)
     async def health_check(response: Response) -> HealthResponse:
@@ -36,6 +49,7 @@ def create_health_router(
         overall_ok = db_ok and redis_ok
 
         if not overall_ok:
+            logger.warning("health_check_degraded", database=db_status, redis=redis_status)
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
         return HealthResponse(
