@@ -63,3 +63,18 @@ async def resolve_user_tenant(
     if row is None:
         return None
     return (row[0], str(row[1]))
+
+
+async def resolve_user_by_email(
+    session: AsyncSession,
+    email: str,
+) -> tuple[UUID, UUID, str] | None:
+    """Resolve (user_id, tenant_id, role) by email via SECURITY DEFINER SQL."""
+    result = await session.execute(
+        text("SELECT user_id, tenant_id, role FROM resolve_user_by_email(:email)"),
+        {"email": email.strip().lower()},
+    )
+    row = result.one_or_none()
+    if row is None:
+        return None
+    return (row[0], row[1], str(row[2]))

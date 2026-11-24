@@ -72,6 +72,8 @@ services:
       LLM_ESCALATION_MODEL: ${LLM_ESCALATION_MODEL:-gemini-3.8-flash}
       LLM_ESCALATION_ENABLED: ${LLM_ESCALATION_ENABLED:-false}
       FERNET_KEY: ${FERNET_KEY:-}
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     healthcheck:
       test:
         [
@@ -118,6 +120,8 @@ services:
       LLM_ESCALATION_MODEL: ${LLM_ESCALATION_MODEL:-gemini-3.8-flash}
       LLM_ESCALATION_ENABLED: ${LLM_ESCALATION_ENABLED:-false}
       FERNET_KEY: ${FERNET_KEY:-}
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,6 +129,20 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    expose:
+      - "3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:

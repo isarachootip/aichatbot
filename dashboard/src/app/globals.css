@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --primary: #0f766e;
+  --primary-hover: #115e59;
+  --border: #e2e8f0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-noto-thai), "Noto Sans Thai", system-ui, -apple-system, sans-serif;
+}

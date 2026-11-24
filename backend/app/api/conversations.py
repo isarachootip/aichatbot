@@ -1,9 +1,9 @@
-"""Authenticated agent inbox endpoints for human replies and bot/human handoff control."""
+"""Authenticated agent inbox endpoints for listing threads, replies, and handoff control."""
 
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.channels.factory import ChannelAdapterFactory
@@ -12,6 +12,9 @@ from app.core.security import AuthContext, UserRole, require_roles
 from app.schemas.conversations import (
     AgentMessageRequest,
     AgentMessageResponse,
+    ConversationListResponse,
+    ConversationMessagesResponse,
+    ConversationMode,
     ConversationModeResponse,
     ConversationModeUpdateRequest,
 )
@@ -21,6 +24,7 @@ from app.services.conversations import (
     send_agent_message,
     set_conversation_mode,
 )
+from app.services.conversations_read import get_conversation_messages, list_conversations
 
 INBOX_ROLES: tuple[UserRole, ...] = ("owner", "admin", "agent")
 
@@ -31,7 +35,7 @@ def create_conversations_router(
     adapter_factory: ChannelAdapterFactory,
     settings: Settings,
 ) -> APIRouter:
-    """Build tenant-isolated router for agent replies and return-to-bot controls."""
+    """Build tenant-isolated router for inbox threads, agent replies, and mode toggle."""
     router = APIRouter(prefix="/conversations", tags=["conversations"])
     inbox_auth = require_roles(
         session_factory=session_factory,
@@ -39,6 +43,30 @@ def create_conversations_router(
         allowed_roles=INBOX_ROLES,
     )
     AuthDep = Annotated[AuthContext, Depends(inbox_auth)]
+
+    @router.get("", response_model=ConversationListResponse)
+    async def get_conversations(
+        auth: AuthDep,
+        mode: Annotated[ConversationMode | None, Query()] = None,
+    ) -> ConversationListResponse:
+        items = await list_conversations(session_factory, tenant_id=auth.tenant_id, mode=mode)
+        return ConversationListResponse(items=items)
+
+    @router.get("/{conversation_id}/messages", response_model=ConversationMessagesResponse)
+    async def read_messages(
+        conversation_id: UUID,
+        auth: AuthDep,
+    ) -> ConversationMessagesResponse:
+        try:
+            return await get_conversation_messages(
+                session_factory,
+                tenant_id=auth.tenant_id,
+                conversation_id=conversation_id,
+            )
+        except ConversationNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
+            ) from exc
 
     @router.post(
         "/{conversation_id}/messages",
@@ -60,8 +88,7 @@ def create_conversations_router(
             )
         except ConversationNotFoundError as exc:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found",
+                status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
             ) from exc
         except ChannelUnavailableError as exc:
             raise HTTPException(
@@ -70,8 +97,7 @@ def create_conversations_router(
             ) from exc
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=str(exc),
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
             ) from exc
 
         return AgentMessageResponse(
@@ -83,10 +109,7 @@ def create_conversations_router(
             created_at=result.created_at,
         )
 
-    @router.post(
-        "/{conversation_id}/return-to-bot",
-        response_model=ConversationModeResponse,
-    )
+    @router.post("/{conversation_id}/return-to-bot", response_model=ConversationModeResponse)
     async def return_conversation_to_bot(
         conversation_id: UUID,
         auth: AuthDep,
@@ -100,10 +123,8 @@ def create_conversations_router(
             )
         except ConversationNotFoundError as exc:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found",
+                status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
             ) from exc
-
         return ConversationModeResponse(
             id=result.id,
             mode=result.mode,
@@ -111,10 +132,7 @@ def create_conversations_router(
             last_agent_reply_at=result.last_agent_reply_at,
         )
 
-    @router.patch(
-        "/{conversation_id}/mode",
-        response_model=ConversationModeResponse,
-    )
+    @router.patch("/{conversation_id}/mode", response_model=ConversationModeResponse)
     async def update_conversation_mode(
         conversation_id: UUID,
         body: ConversationModeUpdateRequest,
@@ -129,10 +147,8 @@ def create_conversations_router(
             )
         except ConversationNotFoundError as exc:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found",
+                status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
             ) from exc
-
         return ConversationModeResponse(
             id=result.id,
             mode=result.mode,

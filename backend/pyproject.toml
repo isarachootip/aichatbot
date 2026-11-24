@@ -28,6 +28,7 @@ dependencies = [
     "pythainlp>=5.0.5",
     "python-crfsuite>=0.9.10",
     "python-docx>=1.1.2",
+    "python-multipart>=0.0.20",
     "redis>=5.2.1",
     "sqlalchemy[asyncio]>=2.0.36",
     "structlog>=24.4.0",

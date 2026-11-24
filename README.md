@@ -112,3 +112,23 @@ docker compose exec backend python -m evals.runner
      ```
    - Enable **Use webhook** and click **Verify** (LINE sends an empty signed `events: []` request and expects `200 OK`).
    - Send a message from your personal LINE app to the OA — the webhook validates `X-Line-Signature`, dedupes by `webhookEventId`, debounces rapid bursts (2.5s), runs the RAG pipeline in ARQ, and replies directly in LINE.
+
+## Shop Dashboard (Phase 5 — Next.js 15 Thai UI)
+
+Run the full stack (`postgres`, `redis`, `minio`, `backend`, `worker`, `dashboard`):
+
+```bash
+docker compose up -d --build
+```
+
+- **Dashboard UI**: `http://localhost:3000` (Thai UI, 7-day free trial signup at `/signup`, 3-step `/onboarding`, `/knowledge`, `/channels`, `/playground`, `/inbox`, `/settings/bot`, `/analytics`, `/team`, `/billing`)
+- **Backend API**: `http://localhost:8000` (`http://localhost:8000/docs` OpenAPI)
+- In local `development` mode (without `SUPABASE_JWKS_URL`), `/signup` and `/login` automatically issue Dev JWT tokens so you can test the entire dashboard immediately.
+
+### Playwright E2E Smoke Test (`signup -> upload -> playground answer`)
+
+```bash
+cd dashboard
+npx playwright install chromium
+npm run test:e2e
+```

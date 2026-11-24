@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_jwks_url: str = ""
     dev_jwt_secret: str = "dev-only-change-me-in-production"
+    public_api_base_url: str = "http://localhost:8000"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # Payments (Omise)
     omise_public_key: str = ""

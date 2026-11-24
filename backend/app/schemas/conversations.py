@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 ConversationMode = Literal["bot", "human"]
+MessageRole = Literal["customer", "bot", "agent"]
 
 
 class AgentMessageRequest(BaseModel):
@@ -40,3 +41,44 @@ class ConversationModeResponse(BaseModel):
     mode: ConversationMode
     last_message_at: datetime
     last_agent_reply_at: datetime | None
+
+
+class ConversationSummaryResponse(BaseModel):
+    """Inbox list row summarizing a single customer chat thread."""
+
+    id: UUID
+    channel_id: UUID
+    channel_name: str
+    channel_type: str
+    external_user_id: str
+    customer_name: str | None
+    mode: ConversationMode
+    last_message_preview: str | None
+    last_message_at: datetime
+    last_agent_reply_at: datetime | None
+
+
+class ConversationListResponse(BaseModel):
+    """Collection wrapper for tenant inbox conversations."""
+
+    items: list[ConversationSummaryResponse]
+
+
+class MessageItemResponse(BaseModel):
+    """Single message inside a conversation thread."""
+
+    id: UUID
+    role: MessageRole
+    content: str
+    sources: list[dict[str, object]]
+    created_at: datetime
+
+
+class ConversationMessagesResponse(BaseModel):
+    """Thread metadata plus ordered message stream."""
+
+    conversation_id: UUID
+    customer_name: str | None
+    external_user_id: str
+    mode: ConversationMode
+    items: list[MessageItemResponse]

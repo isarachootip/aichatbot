@@ -22,6 +22,8 @@ htmlcov/
 node_modules/
 .next/
 out/
+playwright-report/
+test-results/
 
 # IDE & OS
 .vscode/

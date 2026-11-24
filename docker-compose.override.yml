@@ -27,3 +27,7 @@ services:
       - ./backend:/app
     environment:
       APP_ENV: ${APP_ENV:-development}
+
+  dashboard:
+    ports:
+      - "${DASHBOARD_HOST_PORT:-3000}:3000"

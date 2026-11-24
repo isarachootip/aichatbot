@@ -26,6 +26,10 @@ class ObjectStorage(Protocol):
         """Fetch raw bytes for the given object key."""
         ...
 
+    async def delete_object(self, key: str) -> None:
+        """Remove an object from storage if present."""
+        ...
+
 
 class S3ObjectStorage:
     """Async wrapper over boto3 S3 client compatible with MinIO and AWS S3."""
@@ -83,6 +87,9 @@ class S3ObjectStorage:
         raw: bytes = body.read()
         return raw
 
+    def _delete_sync(self, key: str) -> None:
+        self._client.delete_object(Bucket=self._bucket, Key=key)
+
     async def ensure_bucket(self) -> None:
         """Ensure the S3/MinIO bucket exists."""
         await asyncio.to_thread(self._ensure_bucket_sync)
@@ -94,6 +101,10 @@ class S3ObjectStorage:
     async def download_bytes(self, key: str) -> bytes:
         """Download raw file bytes from the configured bucket."""
         return await asyncio.to_thread(self._download_sync, key)
+
+    async def delete_object(self, key: str) -> None:
+        """Remove an object from the configured bucket."""
+        await asyncio.to_thread(self._delete_sync, key)
 
 
 class InMemoryStorage:
@@ -114,3 +125,7 @@ class InMemoryStorage:
         if key not in self._objects:
             raise FileNotFoundError(f"Object not found in storage: {key}")
         return self._objects[key][0]
+
+    async def delete_object(self, key: str) -> None:
+        """Remove raw bytes from memory if present."""
+        self._objects.pop(key, None)
